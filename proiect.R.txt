@@ -1,0 +1,166 @@
+maxErrors = 6   #nr maxim de greseli pe care le putem face 
+mistakes = 0 #nr efectiv de greseli facute, se va actualiza odata cu fiecare litera gresita introdusa
+
+load_words <- function(word, fileName){ #functie care adauga un cuvant intr-un tabel din fisierul cu numele fileName
+  words <- data.frame(
+    word = word
+  )
+  fileN = fileName
+  save(words, file = fileN)
+} #cuvintele sunt adaugate in fisiere diferite si vor fi preluate in functie de nivelul selectat de jucator
+# si intre cuvintele de aceeasi dificultate se va alege random
+
+
+store_words <- function(){
+   wordsArray <- c("banana", "pepene", "prun", "tastatura"); #incarcare efectiva a unor cuvinte 
+   load_words(wordsArray, "1.RData")
+   wordsArray <- c("tetravalenta", "paramizoviroza", "hemastaza", "sternocleidomastoidian")
+   load_words(wordsArray, "3.RData")
+   wordsArray <- c("telefgraf", "ambuscada", "glaciatiune", "bronz")
+   load_words(wordsArray, "2.RData")
+}
+
+store_stats <- function(score){ #memorarea informatiilor despre deznodamantul fiecarui joc de pana acum
+    scoresArray = readRDS(file = "scores.rds")  #citesc informatia de pana acum
+    scoresArray = c(scoresArray, score) # adaug rezultatul jocului din prezent si 
+    saveRDS(scoresArray, file = "scores.rds") # rememorez in fisier 'scorurile', mai multe cu unul la numar
+}
+
+get_letter <- function() { #citesc citera utilizatorului
+  letter <- readline("Introduceti o litera: ")
+  return(letter)
+}
+
+draw_board <- function(){ #functie care deseneaza cadrul de joc
+  size <- 40
+  plot(c(-size, size), c(-size, size), type = "n", main = " --- Spanzuratoarea --- ", xlab = "", ylab = "",
+       xaxt = "n", yaxt = "n") #axele
+  segments(30,-43, 30, 35) # cele 3 segmente sunt cadrul spanzuratorii
+  segments(0, 35, 30, 35)
+  segments(0, 35, 0, 25)
+}
+
+draw_head <- function(){ #functie pentru a desena capul omuletului
+  r <- 5
+  t <- seq(0, 2 * pi, length = 100)
+  x <- r * cos(t)
+  y <- r * sin(t)
+  lines(x, y+20, col = "blue")
+  lines(x/10-2, y/10+20, col = "green")
+  lines(x/10+2, y/10+20, col = "green")
+}
+
+hangman_plot <- function(mistakes) { 
+  #functie in care desenez cate o parte din omulet in functie de numarul de greseli de pana la pasul respectiv
+  draw_board()
+  if(mistakes >= 1) {
+    draw_head();
+  }
+  if(mistakes >= 2) {
+    segments(0, 15, 0, -15, col="red") #trunchi
+  }
+  if(mistakes >= 3) {
+    segments(0, 10, 7, 0, col="brown") #maini
+  }
+  if(mistakes >= 4) {
+    segments(0, 10, -5, 0, col="brown")
+  }
+  if(mistakes >= 5) {
+    segments(0, -15, 7, -25, col="black")#picioare
+  }
+  if(mistakes >= 6) {
+    segments(0, -15, -5, -25, col="black")
+  }
+}
+
+
+runda <- function() { #aceasta functie simuleaza o runda completa de joc:
+  letter <- get_letter() #citim litera
+  discoveredWordNew <- ""
+  found <- FALSE
+  for (i in seq(1:n)) { # o cautam in cuvant
+    if (tolower(substr(word,i,i)) == tolower(letter)) {
+      discoveredWordNew <- paste(discoveredWordNew, substr(word,i,i), sep="")
+      found <- TRUE
+    } else { 
+      discoveredWordNew <- paste(discoveredWordNew, substr(discoveredWord,i,i), sep="") 
+    }
+  }
+  
+  if(found == FALSE) { #daca nu exista, crestem nr de greseli si marcam litera ca fiind utilizata deja
+    mistakes <<- mistakes + 1
+    hangman_plot(mistakes)
+    if( usedLetters[1] == "none" ) {
+      usedLetters[1] <<- letter
+    } else {
+      usedLetters <<- c(usedLetters, letter)
+    }
+  }
+  
+  discoveredWord <<- discoveredWordNew # actualizam cuvantul, in cazul in care s-a descoperit vreo parte din el
+  cat("Litere descoperite: ", discoveredWord, "\n") # mesaj pt informarea utilizatorului
+  cat("Litere gresite: ", usedLetters, "\n")
+}
+
+probability_to_win <- function(){ #functie care calculeaza sansa de castig bazandu-ne pe jocurile anterioare
+  array = readRDS(file = "scores.rds") #preluam din fisier rezultatele meciurilor anterioare
+  winnings = 0 
+  for ( i in (1:length(array)))
+    winnings <- winnings + (array[i]=='w') #contorizam cate au fost castigate
+  prob <- winnings/length(array)
+  return (prob) #returnam probabilitatea de castig
+}
+
+check <- function(mistakes){ #verificam daca jocul s-a incheiat: (nr max de greseli a fost atins sau nu)
+  if( mistakes < maxErrors ) {
+    finalMessage <- c("Felicitari, ai castigat!" , "\n")
+    score = "w"
+  } else {
+    finalMessage <- c("Ai pierdut!", c(" Cuvantul era: ", word) , " Mai incearca!", "\n")
+    score = "l"
+  }
+  store_stats(score)
+  cat(finalMessage)
+  cat("Rezultatele ultimelor meciuri ( w=win, l=lost )" , "\n" ) #afisam rezultatele anterioare
+  array = readRDS(file = "scores.rds") # preluate din fisier
+  cat(array)
+}
+
+random <- function(nr){ #generam un nr random in [1, n]
+  number = as.integer(runif(1,1,nr))
+  return(number)
+}
+
+game_over <- function(){ #functie care verifica daca jocul s-a incheiat , fie am descoperit cuvantul, fie am atins nr max de greseli
+  return ((mistakes >= maxErrors) || (discoveredWord == word));
+}
+
+play <- function() { #rularea efectiva a jocului
+  store_words() #mai intai memoram niste cuvinte in fisiere corespunzatoare dificultatii lor
+  level <<- as.numeric(readline("Alege dificultatea: 1, 2, sau 3: ")) #preluam nivelul de la utilizator
+  cat("Bazandu-ne pe jocurile anterioare, probabilitatea sa castigi este: " , probability_to_win(), "\n" )
+  
+  fileNames = c("1.RData", "2.RData" , "3.RData")
+  myFile = fileNames[level]
+  load(myFile) #incarcam fisierul corespunzator nivelului ales
+  
+  cat("Start! Incearca sa descoperi cuvantul cu cat mai putine greseli, ATENTIE: la a 6-a greseala pierzi!")
+
+  word_index <<- random(nrow(words)) #alegem random un indice intre 1 si nr de cuvinte din tabelul din fisierul resp.
+  word <<- toString(words[word_index,"word"]) #obtinem astfel un cuvant ales random
+  n <<- nchar(word) #initializarea variabilelor de joc
+  discoveredWord <<- NULL
+  usedLetters <<- c("none")
+  mistakes <<- 0
+  hangman_plot(mistakes)
+  for (i in seq(1:n)) {    # mascarea literelor
+    discoveredWord <<- paste(discoveredWord,"_",sep="") 
+  }
+  
+  while( !game_over() ) #rularea jocului runda cu runda pana la incheierea acestuia
+    runda()
+  
+  check(mistakes) #verificam cum s-a incheiat jocul pt afisarea mesajului final
+}
+
+play() # apelam functia play pentru a da start jocului
